@@ -1,0 +1,15 @@
+[package]
+name = "rpu"
+version = "0.1.1"
+edition = "2021"
+authors = ["Markus Moenig"]
+description = "A procedural shape processing language"
+license = "MIT"
+repository = "https://github.com/markusmoenig/RPU.git"
+
+[dependencies]
+rustc-hash = "1.1.0"
+rayon = "1.7.0"
+serde = { version = "1.0.159", features = ["derive"] }
+serde_json = "1.0.96"
+maths-rs = { version = "0.2.4", features = ["short_types", "short_hand_constructors", "casts", "serde"] }
