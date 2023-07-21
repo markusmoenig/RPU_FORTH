@@ -7,6 +7,9 @@ pub mod tile;
 pub mod world;
 pub mod context;
 pub mod palette;
+pub mod scanner;
+pub mod value;
+pub mod sdf3d;
 
 use rust_embed::RustEmbed;
 #[derive(RustEmbed)]
@@ -32,12 +35,18 @@ pub mod prelude {
     pub use crate::world::World;
     pub use crate::context::Context;
     pub use crate::palette::Palette;
+    pub use crate::scanner::{Scanner, Token, TokenType};
+    pub use crate::value::Value;
+    pub use crate::sdf3d::*;
 }
 
 use prelude::*;
 
 use std::fs::File;
 use std::io::BufWriter;
+use std::io;
+use std::io::Write
+;
 
 use viuer::Config;
 
@@ -46,9 +55,34 @@ fn main() {
     let mut rpu = RPU::new();
     let mut buffer = ColorBuffer::new(1200, 800);
 
-    rpu.render_world(&mut buffer);
+    println!("Welcome to the RPU Language Interpreter.");
 
-    write_buffer(&buffer, Some("out.png"), true);
+    print!("rpu % ");
+    io::stdout().flush().unwrap();
+
+    for line in io::stdin().lines() {
+        if let Some(line) = line.ok() {
+            if line == "exit" {
+                break;
+            } else {
+                let mut scanner = Scanner::new(line.trim().into());
+                let rc = rpu.scan(&mut scanner, &mut buffer);
+
+                if rc.0 {
+                    write_buffer(&buffer, Some("out.png"), true);
+                }
+
+                for l in rc.1 {
+                    println!("{}", l);
+                }
+            }
+
+            print!("rpu % ");
+            io::stdout().flush().unwrap();
+        } else {
+            break;
+        }
+    }
 }
 
 fn write_buffer(buffer: &ColorBuffer, file_name: Option<&str>, terminal: bool) {

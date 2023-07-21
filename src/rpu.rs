@@ -1,7 +1,11 @@
 use crate::prelude::*;
+
 pub struct RPU {
     pub world           : World,
     pub context         : Context,
+    pub stack           : Vec<Value>,
+
+    pub dictionary      : FxHashMap<String, Vec<Value>>
 }
 
 impl RPU {
@@ -10,10 +14,52 @@ impl RPU {
         let world = World::new();
         let context: Context = Context::new();
 
+        let dictionary = FxHashMap::default();
+
         Self {
             world,
             context,
+            stack       : vec![],
+
+            dictionary,
         }
+    }
+
+    pub fn scan(&mut self, scanner: &mut Scanner, buffer: &mut ColorBuffer) -> (bool, Vec<String>) {
+
+        let mut output_image = false;
+        let mut output_text = vec![];
+
+        loop {
+            let token = scanner.scan_token(false);
+
+            let kind = token.kind;
+
+            if kind == TokenType::Colon {
+                println!("cc {}", token.lexeme);
+            } else
+            if kind == TokenType::Eof {
+                break;
+            } else
+            if kind == TokenType::Dot {
+                if let Some(v) = self.stack.pop() {
+                    output_text.push(v.to_string());
+                } else {
+                    output_text.push(format!(". stack is empty").to_string());
+                }
+            } else
+            if kind == TokenType::Number {
+                if let Some(n) = token.lexeme.parse::<f32>().ok() {
+                    self.stack.push(Value::Number(n));
+                }
+            }
+
+            //output_text.push(format!("{:?}", token).to_string());
+        }
+
+        self.render_world(buffer);
+
+        (output_image, output_text)
     }
 
     pub fn render_world(&mut self, buffer: &mut ColorBuffer) {
