@@ -11,6 +11,9 @@ use SDF3DType::*;
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 pub struct SDF3D {
     sdf_type                    : SDF3DType,
+
+
+    radius                      : f32,
 }
 
 impl SDF3D {
@@ -18,10 +21,13 @@ impl SDF3D {
 
         Self {
             sdf_type,
+
+            radius              : 0.5,
         }
     }
 
-    pub fn distance(&self, p: Vec3f, stack: &mut Vec<Value>) -> Option<f32> {
+    /// Return the distance to the SDF
+    pub fn distance(&self, p: Vec3f, position: Vec3f) -> f32 {
         let mut d = std::f32::MAX;
         if self.sdf_type == Box {
             /*
@@ -33,17 +39,50 @@ impl SDF3D {
             d = length(max(q,Vec3f::new(0.0, 0.0, 0.0))) + min(max(q.x,q.y),0.0);*/
         } else
         if self.sdf_type == Sphere {
+            d = length(p - position) - self.radius;
+        }
+        d
+    }
+
+    /// Read the properties of the SDF from the stack.
+    pub fn read_properties(&mut self, stack:  &mut Vec<Value>) -> Result<(), String> {
+        if self.sdf_type == Sphere {
             if let Some(v) = stack.pop() {
                 if let Some(n) = v.to_number() {
-                    d = length(p - vec3f(0.0, 0.0, 0.0)) - n;
+                    self.radius = n;
                 } else {
-                    return None;
+                    return Err("Wrong value on stack. Expected number for \"radius\" of Sphere.".into());
                 }
             } else {
-                return None;
+                return Err("Stack is empty. Expected number for \"radius\" of Sphere.".into());
             }
         }
-        Some(d)
+
+        Ok(())
+    }
+
+    /// Generates a bounding box for the SDF
+    pub fn create_bbox(&self, position: Vec3f) -> AABB {
+        let mut min: Vec3<f32> = Vec3f::zero();
+        let mut max: Vec3<f32> = Vec3f::zero();
+
+        if self.sdf_type == Sphere {
+            min = position - self.radius;
+            max = position + self.radius;
+        }
+
+        AABB { min, max }
+    }
+
+    pub fn to_string(&self) -> String {
+        match self.sdf_type {
+            Sphere => {
+                "Sphere".into()
+            },
+            Box => {
+                "Box".into()
+            }
+        }
     }
 
     /*

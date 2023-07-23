@@ -179,7 +179,7 @@ impl<'sourcecode> Scanner {
     fn make_token(&self, kind: TokenType) -> Token {
         Token {
             kind,
-            lexeme      : self.lexeme(),
+            lexeme      : self.lexeme().to_uppercase(),
             line        : self.line,
             indent      : self.indent,
         }

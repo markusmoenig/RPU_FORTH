@@ -5,7 +5,6 @@ pub struct World {
     pub camera              : Camera,
 
     pub map                 : Map,
-    pub needs_update        : bool,
 }
 
 impl World {
@@ -20,31 +19,7 @@ impl World {
             camera,
 
             map,
-            needs_update    : true,
         }
-    }
-
-    /// Get a tile
-    pub fn get_tile(&self, at: Vec3i) -> Option<Tile> {
-        if let Some(tile) = self.map.tiles.get(&(at.x, at.y, at.z)) {
-            Some(tile.clone())
-        } else {
-            None
-        }
-    }
-
-    /// Set a tile
-    pub fn set_tile(&mut self, at: Vec3i, mut tile: Tile) {
-        tile.build_aabb();
-        self.map.tiles.insert((at.x, at.y, at.z), tile);
-    }
-
-    /// Set the tile we are looking at
-    pub fn set_focus(&mut self, at: Vec3i) {
-        self.camera.center.x = at.x as f32 + 0.5;
-        self.camera.center.y = at.y as f32 + 0.5;
-        self.camera.compute_orbit(vec2f(0.0, 0.0));
-        self.needs_update = true;
     }
 
     pub fn render(&self, buffer: &mut ColorBuffer, context: &Context, iteration: i32) {
@@ -461,24 +436,46 @@ impl World {
         }*/
     }
 
-    /*
-    /// Apply the given shape
 
-    pub fn apply(&mut self, /*key: Vec3i, tile_key: Vec3i,*/ tiles: &Vec<Vec3i>) {
-        //let wc = self.to_world_coord(key, tile_key);
+    /// Get a tile
+    pub fn get_tile(&self, at: Vec3i) -> Option<Tile> {
+        if let Some(tile) = self.map.tiles.get(&(at.x, at.y, at.z)) {
+            Some(tile.clone())
+        } else {
+            None
+        }
+    }
 
-        //let shape = Shape::new();
+    /// Set a tile
+    pub fn set_tile(&mut self, at: Vec3i, mut tile: Tile) {
+        tile.build_aabb();
+        self.map.tiles.insert((at.x, at.y, at.z), tile);
+    }
 
-        //let hp: Vec3<f32> = vec3f(0.0, 0.0, 0.0);//self.to_world_coord(key, tile_key);
+    /// Set the tile we are looking at
+    pub fn set_focus(&mut self, at: Vec3i) {
+        self.camera.center.x = at.x as f32 + 0.5;
+        self.camera.center.y = at.y as f32 + 0.5;
+        self.camera.compute_orbit(vec2f(0.0, 0.0));
+    }
 
-        let sdf = SDF3D::new(SDF3DType::Sphere);
+    pub fn clear(&mut self) {
+        self.map.clear();
+    }
 
-        println!("{:?}", tiles);
+    pub fn compile(&mut self, sdf: SDF3D, position: Vec3f) {
+        let bbox = sdf.create_bbox(position);
 
-        for tile_key in tiles {
+        let tiles: Vec<Vec3<i32>> = self.map.create_tiles_aabb(&bbox);
+        // let tiles: Vec<Vec3<i32>> = vec![vec3i(0, 0, 0)];
+
+        //println!("{:?}", tiles);
+
+        for tile_key in &tiles {
             if let Some(mut tile) = self.get_tile(*tile_key) {
-
                 let size = tile.size;
+
+                println!("{}", tile_key);
 
                 for y in 0..size {
                     for x in 0..size {
@@ -505,10 +502,9 @@ impl World {
                             d = min(max(w.x,w.y),0.0) + length(max(w,vec2f(0.0, 0.0)));
                             */
 
-                            let d = sdf.distance(pos);
+                            let d = sdf.distance(pos, position);
 
                             if d < 0.0 {
-
                                 tile.set_voxel(x, y, z, Some((10, 10)));
                             }
                         }
@@ -519,8 +515,8 @@ impl World {
             }
         }
 
-        self.needs_update = true;
-    }*/
+        self.map.build_aabb();
+    }
 
     /// Converts the hit keys to a world coordinate
     pub fn to_world_coord(&self, key: Vec3i, tile_key: Vec3i) -> Vec3f {

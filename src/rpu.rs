@@ -1,25 +1,31 @@
 use crate::prelude::*;
 
 pub struct RPU {
-    pub world           : World,
-    pub context         : Context,
-    pub stack           : Vec<Value>,
+    pub world               : World,
+    pub preview             : World,
 
-    pub dictionary      : FxHashMap<String, Vec<Value>>
+    pub context             : Context,
+    pub stack               : Vec<Value>,
+
+    pub dictionary          : FxHashMap<String, Vec<Value>>
 }
 
 impl RPU {
     pub fn new() -> Self {
 
         let world = World::new();
+        let preview = World::new();
+
         let context: Context = Context::new();
 
         let dictionary = FxHashMap::default();
 
         Self {
             world,
+            preview,
+
             context,
-            stack       : vec![],
+            stack           : vec![],
 
             dictionary,
         }
@@ -29,6 +35,7 @@ impl RPU {
 
         let mut output_image = false;
         let mut output_text = vec![];
+        let mut error = false;
 
         loop {
             let token = scanner.scan_token(false);
@@ -45,19 +52,33 @@ impl RPU {
                 if let Some(v) = self.stack.pop() {
                     output_text.push(v.to_string());
                 } else {
-                    output_text.push(format!(". stack is empty").to_string());
+                    output_text.push(format!("Stack is empty.").to_string());
+                    error = true;
                 }
             } else
             if kind == TokenType::Number {
                 if let Some(n) = token.lexeme.parse::<f32>().ok() {
                     self.stack.push(Value::Number(n));
                 }
+            } else
+            if kind == TokenType::Identifier {
+                if token.lexeme == "SPHERE" {
+                    let mut sdf = SDF3D::new(SDF3DType::Sphere);
+                    if let Some(err) = sdf.read_properties(&mut self.stack).err() {
+                        output_text.push(err);
+                        error = true;
+                    } else {
+                        output_image = true;
+                        // self.preview.clear();
+                        self.preview.compile(sdf, Vec3f::new(0.5, 0.0
+                            , 0.5));
+                        self.preview.render(buffer, &mut self.context, 0);
+                    }
+                }
             }
 
             //output_text.push(format!("{:?}", token).to_string());
         }
-
-        self.render_world(buffer);
 
         (output_image, output_text)
     }

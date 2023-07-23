@@ -3,6 +3,7 @@ use crate::prelude::*;
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub enum Value {
     Number(f32),
+    Shape3D(SDF3D)
 }
 
 pub use Value::*;
@@ -26,6 +27,9 @@ impl Value {
         match self {
             Number(v) => {
                 format!("{:}", v)
+            },
+            Shape3D(sdf) => {
+                sdf.to_string()
             }
         }
     }

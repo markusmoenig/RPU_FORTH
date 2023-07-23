@@ -26,6 +26,28 @@ impl Map {
         }
     }
 
+    /// Clear the map
+    pub fn clear(&mut self) {
+        self.tiles = FxHashMap::default();
+    }
+
+    /// Create all tiles (if necessary) to cover the AABB and return them
+    pub fn create_tiles_aabb(&mut self, bbox: &AABB) -> Vec<Vec3i>{
+        let mut tiles : Vec<Vec3i> = vec![];
+        for x in (bbox.min.x.floor() as i32)..(bbox.max.x.ceil() as i32) {
+            for y in (bbox.min.y.floor() as i32)..(bbox.max.y.ceil() as i32) {
+                for z in (bbox.min.z.floor() as i32)..(bbox.max.z.ceil() as i32) {
+                    if self.tiles.contains_key(&(x, y, z)) == false {
+                        self.tiles.insert((x, y, z), Tile::new(Map::tile_size()));
+                    }
+
+                    tiles.push(Vec3i::new(x, y, z));
+                }
+            }
+        }
+        tiles
+    }
+
     /// Build an aaab for the tiles voxels
     pub fn build_aabb(&mut self) {
 

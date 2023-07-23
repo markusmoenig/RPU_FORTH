@@ -21,7 +21,7 @@ impl Tile {
         camera.origin = camera.center;
         camera.origin.z += 20.0;
 
-        let mut data = vec![None; size * size * size];
+        let data = vec![None; size * size * size];
 
         // Left wall
         // for z in 0..size {
@@ -33,13 +33,13 @@ impl Tile {
         // }
 
         // Bottom floor
-        for x in 0..size {
-            for z in 0..size {
-                let index = x + z * size * size;
+        // for x in 0..size {
+        //     for z in 0..size {
+        //         let index = x + z * size * size;
 
-                data[index] = Some((20, 20));
-            }
-        }
+        //         data[index] = Some((20, 20));
+        //     }
+        // }
 
         //println!("The useful size of `v` is {}", std::mem::size_of_val(&*data));
 
@@ -137,7 +137,7 @@ impl Tile {
                         }
 
                         if y_f < min.y {
-                            min.y = x_f;
+                            min.y = y_f;
                         }
                         if y_f >= max.y {
                             max.y = y_f + 1.0;
@@ -159,8 +159,6 @@ impl Tile {
         } else {
             self.aabb = None;
         }
-
-        //println!("{:?}", self.aabb);
     }
 
     pub fn render(&mut self, buffer: &mut ColorBuffer) {
