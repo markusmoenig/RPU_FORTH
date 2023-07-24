@@ -31,12 +31,48 @@ impl RPU {
         }
     }
 
-    pub fn scan(&mut self, scanner: &mut Scanner, buffer: &mut ColorBuffer) -> (bool, Vec<String>) {
+    pub fn process(&mut self, input: String, buffer: &mut ColorBuffer) -> (bool, Vec<String>) {
+
 
         let mut output_image = false;
         let mut output_text = vec![];
         let mut error = false;
 
+        let rc = self.valuefy(input);
+
+        if rc.is_err() {
+            return (false, vec![rc.err().unwrap()]);
+        }
+
+        let mut values = rc.ok().unwrap();
+
+        loop {
+            if let Some(value) = values.pop() {
+                match value {
+                    Value::Shape3D(mut sdf) => {
+                        let rc = sdf.read_properties(&mut values);
+                        if rc.is_err() {
+                            return (false, vec![rc.err().unwrap()]);
+                        }
+
+                        output_image = true;
+                        self.preview.clear();
+                        self.preview.compile(sdf, Vec3f::new(0.0, 0.0, 1.0));
+
+                        for i in 0..1 {
+                            self.preview.render(buffer, &mut self.context, i);
+                        }
+                    },
+                    _ => {
+                        //return (false, format!("Unexpected Value: {}", )
+                    }
+                }
+            } else {
+                break;
+            }
+        }
+
+        /*
         loop {
             let token = scanner.scan_token(false);
 
@@ -62,6 +98,21 @@ impl RPU {
                 }
             } else
             if kind == TokenType::Identifier {
+                if token.lexeme == "BOX" {
+                    let mut sdf = SDF3D::new(SDF3DType::Box);
+                    if let Some(err) = sdf.read_properties(&mut self.stack).err() {
+                        output_text.push(err);
+                        error = true;
+                    } else {
+                        output_image = true;
+                        self.preview.clear();
+                        self.preview.compile(sdf, Vec3f::new(0.0, 0.5, 0.0));
+
+                        for i in 0..1 {
+                            self.preview.render(buffer, &mut self.context, i);
+                        }
+                    }
+                } else
                 if token.lexeme == "SPHERE" {
                     let mut sdf = SDF3D::new(SDF3DType::Sphere);
                     if let Some(err) = sdf.read_properties(&mut self.stack).err() {
@@ -69,18 +120,83 @@ impl RPU {
                         error = true;
                     } else {
                         output_image = true;
-                        // self.preview.clear();
-                        self.preview.compile(sdf, Vec3f::new(0.5, 0.0
-                            , 0.5));
-                        self.preview.render(buffer, &mut self.context, 0);
+                        self.preview.clear();
+                        self.preview.compile(sdf, Vec3f::new(0.0, 0.5, 0.0));
+
+                        for i in 0..1 {
+                            self.preview.render(buffer, &mut self.context, i);
+                        }
                     }
                 }
             }
 
             //output_text.push(format!("{:?}", token).to_string());
-        }
+        }*/
 
         (output_image, output_text)
+    }
+
+    pub fn valuefy(&mut self, input: String) -> Result<Vec<Value>, String> {
+        let mut scanner = Scanner::new(input.trim().into());
+        let mut values : Vec<Value> = vec![];
+
+        loop {
+            let token = scanner.scan_token(false);
+            let kind = token.kind;
+
+            if kind == TokenType::Colon {
+                println!("cc {}", token.lexeme);
+            } else
+            if kind == TokenType::Eof {
+                break;
+            } else
+            if kind == TokenType::Number {
+                if let Some(n) = token.lexeme.parse::<f32>().ok() {
+                    values.push(Value::Number(n));
+                }
+            } else
+            if kind == TokenType::LeftBracket {
+
+                // Array can contain numbers only so far
+                let mut array : Vec<Value> = vec![];
+
+                loop {
+                    let token = scanner.scan_token(false);
+                    let kind = token.kind;
+
+                    if kind == TokenType::RightBracket {
+                        break;
+                    } else
+                    if kind == TokenType::Number {
+                        if let Some(n) = token.lexeme.parse::<f32>().ok() {
+                            array.push(Value::Number(n));
+                        }
+                    } else
+                    if kind == TokenType::Eof {
+                        return Err("Missing ']' after Array.".to_string());
+                    } else {
+                        return Err(format!("Unknown token in Array: {}.", token.lexeme));
+                    }
+                }
+                values.push(Value::Array(array));
+            } else
+            if kind == TokenType::Identifier {
+                if token.lexeme == "BOX" {
+                    let sdf = SDF3D::new(SDF3DType::Box);
+                    values.push(Value::Shape3D(sdf));
+                } else
+                if token.lexeme == "SPHERE" {
+                    let sdf = SDF3D::new(SDF3DType::Sphere);
+                    values.push(Value::Shape3D(sdf));
+                }
+
+                else {
+                    return Err(format!("Unknown identifier: {}", token.lexeme))
+                }
+            }
+        }
+
+        Ok(values)
     }
 
     pub fn render_world(&mut self, buffer: &mut ColorBuffer) {

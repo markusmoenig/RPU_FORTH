@@ -14,6 +14,8 @@ pub struct SDF3D {
 
 
     radius                      : f32,
+    size                        : Vec3f,
+    textures                    : Vec<Value>
 }
 
 impl SDF3D {
@@ -23,20 +25,29 @@ impl SDF3D {
             sdf_type,
 
             radius              : 0.5,
+            size                : Vec3f::zero(),
+
+            textures            : vec![Value::Number(10.0)],
         }
     }
 
     /// Return the distance to the SDF
     pub fn distance(&self, p: Vec3f, position: Vec3f) -> f32 {
-        let mut d = std::f32::MAX;
-        if self.sdf_type == Box {
-            /*
-            let w = self.parameters[0].get_int() as f32 / 100.0 / 2.0 / zoom;
-            let h = self.parameters[1].get_int() as f32 / 100.0 / 2.0 / zoom;
-            let depth = self.parameters[2].get_int() as f32 / 100.0 / 2.0 / zoom;
 
-            let q = abs(p - self.position) - vec3f(w, h, depth);
-            d = length(max(q,Vec3f::new(0.0, 0.0, 0.0))) + min(max(q.x,q.y),0.0);*/
+        // fn op_rep_lim(p: Vec3f, s: f32, lima: Vec3f, limb: Vec3f ) -> Vec3f {
+        //     return p-s*clamp(round(p/s),lima,limb);
+        // }
+
+        let mut d: f32 = std::f32::MAX;
+
+    	//vec2 q = p*6.0 - vec2(5.0,0.0);
+        //vec2 r = opRepLim(q,2.0,vec2(-1,-2),vec2(1,2));
+
+        //p = op_rep_lim(p, 0.25, vec3f(-1.0, 0.0, -0.0), vec3f(1.0, 2.0, 0.0));
+
+        if self.sdf_type == Box {
+            let q = abs(p - position) - self.size;
+            d = length(max(q,Vec3f::new(0.0, 0.0, 0.0))) + min(max(q.x,q.y),0.0);
         } else
         if self.sdf_type == Sphere {
             d = length(p - position) - self.radius;
@@ -46,6 +57,36 @@ impl SDF3D {
 
     /// Read the properties of the SDF from the stack.
     pub fn read_properties(&mut self, stack:  &mut Vec<Value>) -> Result<(), String> {
+
+        if self.sdf_type == Box {
+            if let Some(v) = stack.pop() {
+                if let Some(n) = v.to_number() {
+                    self.size.z = n;
+                } else {
+                    return Err("Wrong value on stack. Expected number for \"depth\" of Box.".into());
+                }
+            } else {
+                return Err("Stack is empty. Expected number for \"depth\" of Box.".into());
+            }
+            if let Some(v) = stack.pop() {
+                if let Some(n) = v.to_number() {
+                    self.size.y = n;
+                } else {
+                    return Err("Wrong value on stack. Expected number for \"height\" of Box.".into());
+                }
+            } else {
+                return Err("Stack is empty. Expected number for \"height\" of Box.".into());
+            }
+            if let Some(v) = stack.pop() {
+                if let Some(n) = v.to_number() {
+                    self.size.x = n;
+                } else {
+                    return Err("Wrong value on stack. Expected number for \"width\" of Box.".into());
+                }
+            } else {
+                return Err("Stack is empty. Expected number for \"width\" of Box.".into());
+            }
+        } else
         if self.sdf_type == Sphere {
             if let Some(v) = stack.pop() {
                 if let Some(n) = v.to_number() {
@@ -58,7 +99,32 @@ impl SDF3D {
             }
         }
 
+        loop {
+            if let Some(option) = stack.last() {
+                match option {
+                    Value::Array(values) => {
+                        self.textures = values.clone();
+                        _ = stack.pop();
+                    },
+                    _ => {
+                        break;
+                    }
+                }
+            } else {
+                break;
+            }
+        }
+
         Ok(())
+    }
+
+    /// Gets a random color index
+    pub fn get_color(&self) -> u8 {
+        if let Some(color) = self.textures[0].to_color() {
+            color
+        } else {
+            0
+        }
     }
 
     /// Generates a bounding box for the SDF
@@ -66,6 +132,10 @@ impl SDF3D {
         let mut min: Vec3<f32> = Vec3f::zero();
         let mut max: Vec3<f32> = Vec3f::zero();
 
+        if self.sdf_type == Box {
+            min = position - self.size;
+            max = position + self.size;
+        } else
         if self.sdf_type == Sphere {
             min = position - self.radius;
             max = position + self.radius;

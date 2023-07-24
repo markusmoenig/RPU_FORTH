@@ -13,12 +13,12 @@ impl Map {
 
         let mut tiles  = FxHashMap::default();
 
-        let mut tile = Tile::new(Map::tile_size());
-        tile.build_aabb();
+        // let mut tile = Tile::new(Map::tile_size());
+        // tile.build_aabb();
 
-        tiles.insert((-1, 0, 0), tile.clone());
-        tiles.insert((0, 0, 0), tile.clone());
-        tiles.insert((1, 0, 0), tile);
+        // tiles.insert((-1, 0, 0), tile.clone());
+        // tiles.insert((0, 0, 0), tile.clone());
+        // tiles.insert((1, 0, 0), tile);
 
         Self {
             tiles,

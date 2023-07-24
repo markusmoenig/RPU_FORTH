@@ -65,8 +65,7 @@ fn main() {
             if line == "exit" {
                 break;
             } else {
-                let mut scanner = Scanner::new(line.trim().into());
-                let rc = rpu.scan(&mut scanner, &mut buffer);
+                let rc = rpu.process(line.trim().into(), &mut buffer);
 
                 if rc.0 {
                     write_buffer(&buffer, Some("out.png"), true);

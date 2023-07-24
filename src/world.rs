@@ -10,7 +10,7 @@ pub struct World {
 impl World {
     pub fn new() -> Self {
 
-        let camera = Camera::new(vec3f(0.0, 1.0, 2.0), Vec3f::new(0.0, 0.0, 0.0), 45.0);
+        let camera = Camera::new(vec3f(0.0, 1.0, 2.0), Vec3f::new(0.0, 0.0, 0.0), 120.0);
 
         let mut map = Map::new();
         map.build_aabb();
@@ -65,93 +65,25 @@ impl World {
                     if context.iso_state {
                         ray = self.camera.create_iso_ray(uv, screen, cam_off);
                     } else {
-                        ray = self.camera.create_orbit_ray(uv, screen, cam_off);
+                        ray = self.camera.create_ray(uv, screen, cam_off);
                     }
 
-                    let mut color = [0.15, 0.15, 0.15, 1.0];
+                    let mut color = [0.0, 0.0, 0.0, 1.0];
+                    let mut hit_something = false;
 
                     if let Some(aabb) = &self.map.aabb {
                         if self.map.ray_aabb(&ray, aabb) == true {
                             if context.render_state == false {
-                                color = [0.15, 0.15, 0.15, 1.0];
+                                color = [0.0, 0.0, 0.0, 1.0];
 
                                 if let Some(hit) = self.dda_recursive(&ray) {
                                     //color = [hit.normal.x.abs(), hit.normal.y.abs(), hit.normal.z.abs(), 1.0];
                                     color = context.palette.at_f_to_linear(hit.value.0);
-
-                                    // Ambient occlusion
-                                    let pos = hit.hitpoint - 0.01 * hit.normal;
-
-                                    let z = hit.normal;
-                                    let x = normalize(cross(z, vec3f(-0.36, -0.48, 0.8)));
-                                    let y = normalize(cross(z, x));
-
-                                    // let hash = hash3_2(vec3f(time + 0.2, uv.x, uv.y));
-                                    let hash = vec2f(rng.gen(), rng.gen());
-                                    // let hash = vec2f(0.5, 0.5);
-                                    let mut a = sqrt(hash.x);
-                                    let b = a * cos(6.283185 * hash.y);
-                                    let c = a * sin(6.283185 * hash.y);
-                                    a = sqrt(1.0 - hash.x);
-                                    let shade_dir = b * x + c * y + a * z;
-
-                                    let ambient;
-                                    if let Some(_) = self.dda_recursive(&Ray::new(pos, shade_dir)) {
-                                        ambient = 0.0;
-                                    } else {
-                                        ambient = 0.4;
-                                    }
-
-                                    /*
-                                    // Sun
-                                    let mut z = vec3f(0.48, 0.36, 0.8);
-                                    let x = normalize(cross(z, vec3f(0.0, 1.0, 0.0)));
-                                    let y = normalize(cross(z, x));
-
-                                    // let hash = hash3_2(vec3f(time + 0.3, uv.x, uv.y));
-                                    let hash = vec2f(rng.gen(), rng.gen());
-                                    //let hash = vec2f(0.5, 0.5);
-                                    let a = sqrt(hash.x);
-                                    let b = a * cos(6.283185 * hash.y);
-                                    let c = a * sin(6.283185 * hash.y);
-                                    z += 0.04 * (b * x + c * y);
-
-                                    let sun;
-                                    if let Some(_) = self.dda_recursive(&Ray::new(pos, normalize(z))) {
-                                        sun = 0.0;
-                                    } else {
-                                        sun = 1.0;
-                                    }*/
-
-                                    // color[0] *= 0.6 * ambient + 0.4 * sun;
-                                    // color[1] *= 0.6 * ambient + 0.4 * sun;
-                                    // color[2] *= 0.6 * ambient + 0.4 * sun;
-                                    color[0] += ambient;// + 0.4 * sun;
-                                    color[1] += ambient;// + 0.4 * sun;
-                                    color[2] += ambient;// + 0.4 * sun;
-
-                                    // hit.compute_side();
-                                    // if hit.side == SideEnum::Top {
-                                    //     color[1] += 0.2;
-                                    // } else
-                                    // if hit.side == SideEnum::Right {
-                                    //     color[2] += 0.2;
-                                    // }
-
-                                    // color[0] *= sun;
-                                    // color[1] *= sun;
-                                    // color[2] *= sun;
-
-                                    // if context.curr_tool_role == ToolRole::Tile && Some(hit.key) == context.curr_key {
-                                    //     color = mix_color(&color, &[1.0, 1.0, 1.0, 1.0], 0.2);
-                                    // }
-
-                                    // Clip color to the palette
-                                    let index = context.palette.closest(color[0].powf(0.4545), color[1].powf(0.4545), color[2].powf(0.4545));
-                                    color = context.palette.at_f(index);
+                                    hit_something = true;
                                 }
                             } else {
 
+                                /*
                                 let max_depth = 2;
 
                                 let mut acc = Vec3f::zero();
@@ -260,6 +192,32 @@ impl World {
                                     color = context.palette.at_f(index);
                                 } else {
                                     color = [0.15, 0.15, 0.15, 1.0];
+                                }*/
+                            }
+                        }
+                    }
+
+                    if hit_something == false {
+                        let normal = vec3f(0.0, 1.0, 0.0);
+                        let denom = dot(normal, ray.d);
+
+                        if denom.abs() > 0.0001 {
+                            let t = dot(Vec3f::zero() - ray.o, normal) / denom;
+                            if t >= 0.0 {
+                                let plane_hit = ray.at(t);
+
+                                if (plane_hit.z.floor().abs() as i32 % 2) == 0 {
+                                    if (plane_hit.x.floor().abs() as i32 % 2) == 0 {
+                                        color = [0.1, 0.1, 0.1, 0.5];
+                                    } else {
+                                        color = [0.15, 0.15, 0.15, 0.5];
+                                    }
+                                } else {
+                                    if (plane_hit.x.floor().abs() as i32 % 2) == 1 {
+                                        color = [0.1, 0.1, 0.1, 0.5];
+                                    } else {
+                                        color = [0.15, 0.15, 0.15, 0.5];
+                                    }
                                 }
                             }
                         }
@@ -504,8 +462,9 @@ impl World {
 
                             let d = sdf.distance(pos, position);
 
+
                             if d < 0.0 {
-                                tile.set_voxel(x, y, z, Some((10, 10)));
+                                tile.set_voxel(x, y, z, Some((sdf.get_color(), 10)));
                             }
                         }
                     }
