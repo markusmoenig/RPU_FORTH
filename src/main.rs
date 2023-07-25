@@ -20,6 +20,7 @@ pub struct Embedded;
 
 pub mod prelude {
     pub use rayon::{slice::ParallelSliceMut, iter::{IndexedParallelIterator, ParallelIterator}};
+    pub use rand::{thread_rng, Rng, rngs::ThreadRng};
     pub use serde::{Deserialize, Serialize};
     pub use maths_rs::prelude::*;
     pub use rustc_hash::FxHashMap;
@@ -53,10 +54,11 @@ use viuer::Config;
 fn main() {
 
     let mut rpu = RPU::new();
+    rpu.reload();
+
     let mut buffer = ColorBuffer::new(1200, 800);
 
     println!("Welcome to the RPU Language Interpreter.");
-
     print!("rpu % ");
     io::stdout().flush().unwrap();
 

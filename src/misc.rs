@@ -20,6 +20,12 @@ pub struct AABB {
     pub max             : Vec3f,
 }
 
+impl AABB {
+    pub fn get_size(&self) -> Vec3f {
+        self.max - self.min
+    }
+}
+
 use std::ops::Index;
 
 impl Index<usize> for AABB {
@@ -68,7 +74,7 @@ impl Ray {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub enum SideEnum {
+pub enum Side {
     Top,
     Bottom,
     Left,
@@ -87,7 +93,7 @@ pub struct HitRecord {
     pub normal          : Vec3f,
     pub uv              : Vec3f,
     pub value           : (u8, u8),
-    pub side            : SideEnum,
+    pub side            : Side,
 }
 
 impl HitRecord {
@@ -100,33 +106,64 @@ impl HitRecord {
             normal      : Vec3f::zero(),
             uv          : Vec3f::zero(),
             value       : (0, 0),
-            side        : SideEnum::Top,
+            side        : Side::Top,
         }
     }
 
     pub fn compute_side(&mut self) {
         if self.normal.y > 0.5 {
-            self.side = SideEnum::Bottom;
+            self.side = Side::Bottom;
         } else
         if self.normal.y < -0.5 {
-            self.side = SideEnum::Top;
+            self.side = Side::Top;
         } else
         if self.normal.x > 0.5 {
-            self.side = SideEnum::Left;
+            self.side = Side::Left;
         } else
         if self.normal.x < -0.5 {
-            self.side = SideEnum::Right;
+            self.side = Side::Right;
         } else
         if self.normal.z > 0.5 {
-            self.side = SideEnum::Back;
+            self.side = Side::Back;
         } else
         if self.normal.z < -0.5 {
-            self.side = SideEnum::Front;
+            self.side = Side::Front;
         }
     }
 
-    pub fn get_side(&mut self) -> SideEnum {
+    pub fn get_side(&mut self) -> Side {
         self.side.clone()
     }
 
+}
+
+/// Location
+#[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+pub enum Location {
+    BackLeft,
+    BackMiddle,
+    BackRight,
+    MiddleLeft,
+    Middle,
+    FrontLeft,
+    FrontMiddle,
+    FrongRight,
+}
+
+/// BAKE
+pub struct Bake {
+    pub sdf             : Option<SDF3D>,
+
+    pub location        : Location,
+    pub facing          : Side,
+}
+
+impl Bake {
+    pub fn new() -> Self {
+        Self {
+            sdf         : None,
+            location    : Location::FrontLeft,
+            facing      : Side::Front,
+        }
+    }
 }

@@ -7,7 +7,9 @@ pub struct RPU {
     pub context             : Context,
     pub stack               : Vec<Value>,
 
-    pub dictionary          : FxHashMap<String, Vec<Value>>
+    pub dictionary          : FxHashMap<String, Vec<Value>>,
+
+    pub bake                : Option<Bake>,
 }
 
 impl RPU {
@@ -28,11 +30,18 @@ impl RPU {
             stack           : vec![],
 
             dictionary,
+
+            bake            : None,
         }
     }
 
-    pub fn process(&mut self, input: String, buffer: &mut ColorBuffer) -> (bool, Vec<String>) {
+    /// Reload all data
+    pub fn reload(&mut self) {
+        self.load_dictionary();
+    }
 
+    /// Process the given string
+    pub fn process(&mut self, input: String, buffer: &mut ColorBuffer) -> (bool, Vec<String>) {
 
         let mut output_image = false;
         let mut output_text = vec![];
@@ -46,23 +55,86 @@ impl RPU {
 
         let mut values = rc.ok().unwrap();
 
+        // STACK Config
+        if values.is_empty() == false && values[0] == Value::Config("STACK".to_string()) {
+
+            if self.stack.is_empty() {
+                return (false, vec!["Stack is empty.".to_string()]);
+            }
+
+            let mut stack_messages = vec![];
+            for (index, v) in self.stack.iter().enumerate() {
+                stack_messages.push(format!("{}. {}", index + 1, v.to_string()));
+            }
+            return (false, stack_messages);
+        }
+
+        // DICT Config
+        if values.is_empty() == false && values[0] == Value::Config("DICT".to_string()) {
+
+            if self.dictionary.is_empty() {
+                return (false, vec!["Dictionary is empty.".to_string()]);
+            }
+
+            let mut dict_messages = vec![];
+            for (word, values) in &self.dictionary {
+                let mut val = String::new();
+                for v in values {
+                    val += v.to_string().as_str();
+                    val += " ";
+                }
+                dict_messages.push(format!("{}: {}", word, val));
+            }
+            return (false, dict_messages);
+        }
+
+        // Word definition
+        if values.is_empty() == false && values[0] == Value::WordDefinitionStart() {
+            _ = values.remove(0);
+
+            if values.len() > 2 {
+                let word = values.remove(0);
+                let word_end = values.remove(values.len()-1);
+
+                if word_end == Value::WordDefinitionEnd() {
+                    self.dictionary.insert(word.to_string(), values);
+                    self.save_dictionary();
+                    return (false, vec![format!("{} added to the dictionary.", word.to_string())]);
+                } else {
+                    return (false, vec![format!("Invalid word definition.")]);
+                }
+            } else {
+                return (false, vec![format!("Invalid word definition.")]);
+            }
+        }
+
+        let mut cloned = values.clone();
+        self.stack.append(&mut cloned);
+        values = self.stack.clone();
+
         loop {
             if let Some(value) = values.pop() {
                 match value {
                     Value::Shape3D(mut sdf) => {
-                        let rc = sdf.read_properties(&mut values);
-                        if rc.is_err() {
-                            return (false, vec![rc.err().unwrap()]);
-                        }
+                        if let Some(compile) = &mut self.bake {
 
-                        output_image = true;
-                        self.preview.clear();
-                        self.preview.compile(sdf, Vec3f::new(0.0, 0.0, 1.0));
+                            let rc = sdf.read_properties(&mut values);
+                            if rc.is_err() {
+                                return (false, vec![rc.err().unwrap()]);
+                            }
 
-                        for i in 0..1 {
-                            self.preview.render(buffer, &mut self.context, i);
+                            compile.sdf = Some(sdf);
                         }
                     },
+                    Value::Command(cmd) => {
+                        match cmd.as_str() {
+                            "BAKE" => {
+                                self.bake = Some(Bake::new());
+                            },
+                            _ => {
+                            }
+                        }
+                    }
                     _ => {
                         //return (false, format!("Unexpected Value: {}", )
                     }
@@ -71,6 +143,20 @@ impl RPU {
                 break;
             }
         }
+
+        if let Some(bake) = &self.bake {
+            output_image = true;
+            self.preview.clear();
+            self.preview.compile(bake, &mut self.context);
+
+            for i in 0..10 {
+                self.preview.render(buffer, &mut self.context, i);
+            }
+
+            self.stack = vec![];
+        }
+
+        self.bake = None;
 
         /*
         loop {
@@ -136,16 +222,24 @@ impl RPU {
         (output_image, output_text)
     }
 
+    /// Create values out of the token stream
     pub fn valuefy(&mut self, input: String) -> Result<Vec<Value>, String> {
         let mut scanner = Scanner::new(input.trim().into());
         let mut values : Vec<Value> = vec![];
+
+        let mut first_value: bool = true;
+        let mut word_definition: bool = false;
 
         loop {
             let token = scanner.scan_token(false);
             let kind = token.kind;
 
             if kind == TokenType::Colon {
-                println!("cc {}", token.lexeme);
+                values.push(Value::WordDefinitionStart());
+                word_definition = true;
+            } else
+            if kind == TokenType::Semicolon {
+                values.push(Value::WordDefinitionEnd());
             } else
             if kind == TokenType::Eof {
                 break;
@@ -188,12 +282,36 @@ impl RPU {
                 if token.lexeme == "SPHERE" {
                     let sdf = SDF3D::new(SDF3DType::Sphere);
                     values.push(Value::Shape3D(sdf));
+                } else
+                if token.lexeme == "BAKE" {
+                    values.push(Value::Command(token.lexeme));
+                } else
+
+                // Configs
+                if first_value && token.lexeme == "STACK" {
+                    values.push(Value::Config(token.lexeme));
+                } else
+                if first_value && (token.lexeme == "DICT" || token.lexeme == "DICTIONARY") {
+                    values.push(Value::Config("DICT".to_string()));
+                } else
+
+                // Word Definition ?
+                if word_definition {
+                    values.push(Value::Config(token.lexeme));
+                } else
+
+                // In Dictionary ?
+                if let Some(dict) = self.dictionary.get(&token.lexeme) {
+                    let mut cloned = dict.clone();
+                    values.append(&mut cloned);
                 }
 
                 else {
                     return Err(format!("Unknown identifier: {}", token.lexeme))
                 }
             }
+
+            first_value = false;
         }
 
         Ok(values)
@@ -278,5 +396,21 @@ impl RPU {
                 }
         });
 
+    }
+
+    /// Load the dictionary from disk
+    fn load_dictionary(&mut self) {
+        if let Some(data) = std::fs::read_to_string("dictionary.json").ok() {
+            if let Some(dict) = serde_json::from_str::<FxHashMap<String, Vec<Value>>>(&data).ok() {
+                self.dictionary = dict;
+            }
+        }
+    }
+
+    /// Save the dictionary to disk
+    fn save_dictionary(&self) {
+        if let Some(json) = serde_json::to_string_pretty(&self.dictionary).ok() {
+            std::fs::write("dictionary.json", json).expect("Unable to write dictionary");
+        }
     }
 }

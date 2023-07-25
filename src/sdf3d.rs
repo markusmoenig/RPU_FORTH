@@ -46,7 +46,7 @@ impl SDF3D {
         //p = op_rep_lim(p, 0.25, vec3f(-1.0, 0.0, -0.0), vec3f(1.0, 2.0, 0.0));
 
         if self.sdf_type == Box {
-            let q = abs(p - position) - self.size;
+            let q = abs(p - position) - self.size / 2.0;
             d = length(max(q,Vec3f::new(0.0, 0.0, 0.0))) + min(max(q.x,q.y),0.0);
         } else
         if self.sdf_type == Sphere {
@@ -119,22 +119,44 @@ impl SDF3D {
     }
 
     /// Gets a random color index
-    pub fn get_color(&self) -> u8 {
-        if let Some(color) = self.textures[0].to_color() {
-            color
+    pub fn get_color(&self, rng: &mut ThreadRng) -> u8 {
+        if self.textures.is_empty() == false {
+            if self.textures.len() == 1 {
+                self.textures[0].to_color().unwrap()
+            } else {
+                let index = rng.gen_range(0..self.textures.len());
+                self.textures[index].to_color().unwrap()
+            }
         } else {
             0
         }
     }
 
-    /// Generates a bounding box for the SDF
+    /// Generates a bounding box centered at 0, 0, 0
+    pub fn create_local_bbox(&self) -> AABB {
+        let mut min: Vec3<f32> = Vec3f::zero();
+        let mut max: Vec3<f32> = Vec3f::zero();
+
+        if self.sdf_type == Box {
+            min = Vec3f::zero() - self.size / 2.0;
+            max = Vec3f::zero() + self.size / 2.0;
+        } else
+        if self.sdf_type == Sphere {
+            min = Vec3f::zero() - self.radius;
+            max = Vec3f::zero() + self.radius;
+        }
+
+        AABB { min, max }
+    }
+
+    /// Generates a bounding box centered at 0, 0, 0
     pub fn create_bbox(&self, position: Vec3f) -> AABB {
         let mut min: Vec3<f32> = Vec3f::zero();
         let mut max: Vec3<f32> = Vec3f::zero();
 
         if self.sdf_type == Box {
-            min = position - self.size;
-            max = position + self.size;
+            min = position - self.size / 2.0;
+            max = position + self.size / 2.0;
         } else
         if self.sdf_type == Sphere {
             min = position - self.radius;

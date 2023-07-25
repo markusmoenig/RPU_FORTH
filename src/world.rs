@@ -70,6 +70,7 @@ impl World {
 
                     let mut color = [0.0, 0.0, 0.0, 1.0];
                     let mut hit_something = false;
+                    let mut hit_distance = std::f32::MAX;
 
                     if let Some(aabb) = &self.map.aabb {
                         if self.map.ray_aabb(&ray, aabb) == true {
@@ -80,6 +81,7 @@ impl World {
                                     //color = [hit.normal.x.abs(), hit.normal.y.abs(), hit.normal.z.abs(), 1.0];
                                     color = context.palette.at_f_to_linear(hit.value.0);
                                     hit_something = true;
+                                    hit_distance = hit.distance;
                                 }
                             } else {
 
@@ -197,31 +199,40 @@ impl World {
                         }
                     }
 
-                    if hit_something == false {
-                        let normal = vec3f(0.0, 1.0, 0.0);
-                        let denom = dot(normal, ray.d);
+                    let normal = vec3f(0.0, 1.0, 0.0);
+                    let denom = dot(normal, ray.d);
 
-                        if denom.abs() > 0.0001 {
-                            let t = dot(Vec3f::zero() - ray.o, normal) / denom;
-                            if t >= 0.0 {
-                                let plane_hit = ray.at(t);
+                    if denom.abs() > 0.0001 {
+                        let t = dot(Vec3f::zero() - ray.o, normal) / denom;
+                        if t >= 0.0 {
+                            let plane_hit = ray.at(t);
 
-                                if (plane_hit.z.floor().abs() as i32 % 2) == 0 {
-                                    if (plane_hit.x.floor().abs() as i32 % 2) == 0 {
-                                        color = [0.1, 0.1, 0.1, 0.5];
-                                    } else {
-                                        color = [0.15, 0.15, 0.15, 0.5];
-                                    }
+                            let ground_color;
+
+                            if (plane_hit.z.floor().abs() as i32 % 2) == 0 {
+                                if (plane_hit.x.floor().abs() as i32 % 2) == 0 {
+                                    ground_color = [0.1, 0.1, 0.1, 0.5];
                                 } else {
-                                    if (plane_hit.x.floor().abs() as i32 % 2) == 1 {
-                                        color = [0.1, 0.1, 0.1, 0.5];
-                                    } else {
-                                        color = [0.15, 0.15, 0.15, 0.5];
-                                    }
+                                    ground_color = [0.15, 0.15, 0.15, 0.5];
                                 }
+                            } else {
+                                if (plane_hit.x.floor().abs() as i32 % 2) == 1 {
+                                    ground_color = [0.1, 0.1, 0.1, 0.5];
+                                } else {
+                                    ground_color = [0.15, 0.15, 0.15, 0.5];
+                                }
+                            }
+
+                            if hit_something == true  {
+                                if t <= hit_distance {
+                                    color = mix_color(&ground_color, &color, 0.5);
+                                }
+                            } else {
+                                color = ground_color;
                             }
                         }
                     }
+
 
                     // Accumulate
                     let mix = mix_color(pixel, &color, 1.0 / (iteration + 1) as f32);
@@ -421,60 +432,92 @@ impl World {
         self.map.clear();
     }
 
-    pub fn compile(&mut self, sdf: SDF3D, position: Vec3f) {
-        let bbox = sdf.create_bbox(position);
+    pub fn compile(&mut self, bake: &Bake, _context: &mut Context) {
 
-        let tiles: Vec<Vec3<i32>> = self.map.create_tiles_aabb(&bbox);
-        // let tiles: Vec<Vec3<i32>> = vec![vec3i(0, 0, 0)];
+        let repeat = 3;
 
-        //println!("{:?}", tiles);
+        let mut rng: ThreadRng = thread_rng();
 
-        for tile_key in &tiles {
-            if let Some(mut tile) = self.get_tile(*tile_key) {
-                let size = tile.size;
+        if let Some(sdf) = &bake.sdf {
+            let local_bbox: AABB = sdf.create_local_bbox();
+            let size = local_bbox.get_size();
+            let mut position = Vec3f::zero();
 
-                println!("{}", tile_key);
+            match bake.location {
+                Location::Middle => {
+                    position.x = 0.5;
+                    position.y = 0.0 + size.y / 2.0;
+                    position.z = 0.5;
+                },
+                Location::FrontLeft => {
+                    position.x = 0.0 + size.x / 2.0;
+                    position.y = 0.0 + size.y / 2.0;
+                    position.z = 1.0 - size.z / 2.0;
+                },
+                _ => {
+                }
+            }
 
-                for y in 0..size {
-                    for x in 0..size {
-                        for z in 0..size {
-                            let pos = self.to_world_coord(*tile_key, vec3i(x as i32, y as i32, z as i32));
+            for r in 0..repeat {
 
-                            /*
+                let bbox: AABB = sdf.create_bbox(position);
+                let tiles: Vec<Vec3<i32>> = self.map.create_tiles_aabb(&bbox);
 
-                            let p = pos - vec3f(0.0, 0.2, 0.0) - hp; let b = vec3f(0.2, 0.2, 0.2);
-                            let q = abs(p) - b;
-                            let d1 = length(max(q,vec3f(0.0, 0.0, 0.0))) + min(max(q.x,max(q.y,q.z)),0.0);
-                            if d1 < 0.0 {
-                                tile.set_voxel(x, y, z, Some((10, 10)));
-                            }*/
+                // let tiles: Vec<Vec3<i32>> = vec![vec3i(0, 0, 0)];
+                //println!("{:?}", tiles);
 
-                            /*
-                            let p = abs(pos.xy() - vec2f(0.0, 0.3) - hp.xy()) - vec2f(0.2, 0.2);
-                            let mut d = length(max(p,Vec2f::new(0.0, 0.0))) + min(max(p.x,p.y),0.0);
+                let color = sdf.get_color(&mut rng);
 
-                            d = abs(d) - 0.05;
+                for tile_key in &tiles {
+                    if let Some(mut tile) = self.get_tile(*tile_key) {
+                        let size = tile.size;
 
-                            let h = 0.2;
-                            let w = vec2f( d, abs(pos.z - hp.z) - h );
-                            d = min(max(w.x,w.y),0.0) + length(max(w,vec2f(0.0, 0.0)));
-                            */
+                        // println!("{}", tile_key);
 
-                            let d = sdf.distance(pos, position);
+                        for y in 0..size {
+                            for x in 0..size {
+                                for z in 0..size {
+                                    let pos = self.to_world_coord(*tile_key, vec3i(x as i32, y as i32, z as i32));
+
+                                    /*
+
+                                    let p = pos - vec3f(0.0, 0.2, 0.0) - hp; let b = vec3f(0.2, 0.2, 0.2);
+                                    let q = abs(p) - b;
+                                    let d1 = length(max(q,vec3f(0.0, 0.0, 0.0))) + min(max(q.x,max(q.y,q.z)),0.0);
+                                    if d1 < 0.0 {
+                                        tile.set_voxel(x, y, z, Some((10, 10)));
+                                    }*/
+
+                                    /*
+                                    let p = abs(pos.xy() - vec2f(0.0, 0.3) - hp.xy()) - vec2f(0.2, 0.2);
+                                    let mut d = length(max(p,Vec2f::new(0.0, 0.0))) + min(max(p.x,p.y),0.0);
+
+                                    d = abs(d) - 0.05;
+
+                                    let h = 0.2;
+                                    let w = vec2f( d, abs(pos.z - hp.z) - h );
+                                    d = min(max(w.x,w.y),0.0) + length(max(w,vec2f(0.0, 0.0)));
+                                    */
+
+                                    let d = sdf.distance(pos, position);
 
 
-                            if d < 0.0 {
-                                tile.set_voxel(x, y, z, Some((sdf.get_color(), 10)));
+                                    if d < 0.0 {
+                                        tile.set_voxel(x, y, z, Some((color, 10)));
+                                    }
+                                }
                             }
                         }
+
+                        self.set_tile(*tile_key, tile);
                     }
                 }
 
-                self.set_tile(*tile_key, tile);
+                position.x += size.x + 0.01;
             }
-        }
 
-        self.map.build_aabb();
+            self.map.build_aabb();
+        }
     }
 
     /// Converts the hit keys to a world coordinate
